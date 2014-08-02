@@ -1,4 +1,4 @@
 ipython==2.1
 pudb==2014.1
 cython==0.20.2
-csb
+-e git://github.com/biopython/biopython.git#egg=biopython
