@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
 import unittest
-import bio1, bio2
+from random import shuffle
+import bio1, bio2, bio4, bio5
+from graph import *
 
 class TestBioFunctions(unittest.TestCase):
 
@@ -96,7 +98,7 @@ class TestBioFunctions(unittest.TestCase):
         dna2 = bio2.to_dna(rna2)
         self.assertEqual(dna, dna2)
 
-    def test_peptide_to_rna(self):
+    def _test_peptide_to_rna(self):
         amino = 'MA'
         res = bio2.peptide_to_rna(amino)
         self.assertEqual(res, [])
@@ -125,6 +127,83 @@ class TestBioFunctions(unittest.TestCase):
         res = bio2.branch_bound_1(masses)
         expect = sorted(['186-128-113', '186-113-128', '128-186-113', '128-113-186', '113-186-128', '113-128-186'])
         self.assertEqual(sorted(res), expect)
+
+#---------------------------------------------------
+# graphs
+    
+    def test_balanced(self):
+        edge_iter = ((0,[1,2]), (1,[3]), (2,[1,3]), (3,[0]))
+        g = GraphFactory(edge_iter, directed=True)
+        self.assertFalse(is_balanced(g))
+
+        edge_iter = ((0,[1,2]), (1,[3]), (2,[3]), (3,[0, 4]), (4,[0]))
+        g = GraphFactory(edge_iter, directed=True)
+        self.assertTrue(is_balanced(g))
+
+#----------------------------------------------------
+#lesson 4
+
+    def test_string_complement(self):
+        text = 'CAATCCAAC'
+        length = 5
+        res = sorted([comp for comp in bio4.str_composition(text, length)])
+        expect = ['AATCC', 'ATCCA', 'CAATC', 'CCAAC', 'TCCAA']
+        self.assertEqual(res, expect)
+
+    def test_overlap(self):
+        kmers = ['ATGCG','GCATG','CATGC','AGGCA','GGCAT']
+        res = bio4.str_overlap(kmers)
+        expect = {'AGGCA': ['GGCAT'], 'CATGC': ['ATGCG'], 'GCATG' : ['CATGC'], 'GGCAT' : ['GCATG']}
+        self.assertEqual(res, expect)
+
+        res = bio4.format_overlaps(res)
+        expect = 'AGGCA -> GGCAT\nCATGC -> ATGCG\nGCATG -> CATGC\nGGCAT -> GCATG'
+        self.assertEqual(res, expect)
+
+    def test_deBrujin(self):
+        text = 'AAGATTCTCTAC'
+        kmer = 4
+        _iter = bio4.str_composition(text, kmer)
+        res = bio4.deBruijn(_iter)
+        expect = {'AGA': ['GAT'], 'GAT': ['ATT'], 'AAG': ['AGA'], 'TTC': ['TCT'], 'CTC': ['TCT'], 'CTA': ['TAC'], 'ATT': ['TTC'], 'TCT': ['CTA', 'CTC']}
+        self.assertEqual(res, expect) 
+
+    def test_euler_cycle(self):
+        with open('data/euler.dat', 'r') as f:
+            lines = f.readlines()
+            idxs = [i for i in range(len(lines))]
+            shuffle(idxs)
+            for n in idxs:
+                edge_iter = g_read(lines)
+                res = '->'.join([str(node) for node in bio4.eulerCycle(edge_iter, start_node=n)])
+                res += res[1:]
+                expect = '6->8->7->9->6->5->4->2->1->0->3->2->6'
+                self.assertTrue(expect in res)
+
+    def test_euler_path(self):
+        with open('data/euler_2.dat', 'r') as f:
+            edge_iter = g_read(f.readlines())
+            res = '->'.join([str(node) for node in bio4.eulerPath(edge_iter)])
+            expect = '6->7->8->9->6->3->0->2->1->3->4'
+            self.assertEqual(res, expect)
+
+    def test_str_reconstruct(self):
+        kmers = ['CTTA','ACCA','TACC','GGCT','GCTT','TTAC']
+        expect = 'GGCTTACCA'
+        res = bio4.str_reconstruct(kmers)
+        self.assertEqual(res, expect)
+
+
+#----------------------------------------------------
+#lesson 5
+
+    def _test_lcs(self):
+
+        s2 = 'AACCTTGG'
+        s1 = 'ACACTGTGA'
+        res = bio5.lcs(s1, s2)
+        self.assertEqual(res, 'AACTGG')
+
 
 if __name__ == '__main__':  
     unittest.main()

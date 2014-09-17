@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 import sys
-import bio1, bio2
+import bio1, bio2, bio4
+import graph
+
 
 with open(sys.argv[1], 'r') as f:
 
-    pep = f.readline().strip()
-    #amino = f.readline().strip()
-    masses = [int(p) for p in pep.split(' ')]
-
-    res = bio2.branch_bound_1(masses)
-    print(bio1.pp(res))
+    kmers = [kmer.strip() for kmer in f.readlines()]
+    res = bio4.str_reconstruct(kmers)
+    print(res)
