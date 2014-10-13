@@ -1,5 +1,5 @@
 *.pyc
-*.swp
+*.sw[pno]
 venv_bio/*
 
 lectures

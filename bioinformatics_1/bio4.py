@@ -1,6 +1,12 @@
+#!/usr/bin/env python
+
+import argparse
 from bio2 import cyclic_cutter
+from itertools import product
 from collections import defaultdict
 from graph import GraphFactory, euler_cycle, is_balanced
+
+from Bio import SeqIO, Alphabet
 
 concat = lambda ps: ','.join([p for p in ps]) if isinstance(ps, list) else ps 
 
@@ -67,7 +73,7 @@ def str_overlap(kmers):
     return {k:v for k, v in overlaps.values() if k and v}
 
 
-def deBruijn(kmers):
+def deBruijn(kmers, pairs=False):
     '''
     constructs a deBruijn graph from a list of kmers
 
@@ -75,13 +81,19 @@ def deBruijn(kmers):
 
     :param kmers: an iterable returning kmers
     :type k: `iter`
+    :param pairs: if we got read-pairs
+    :type pairs: `bool`
 
     :rtype: {'source: ['target'...], ...}
     '''
     overlaps = {}
     for kmer in kmers:
-        suffix = kmer[1:]
-        prefix = kmer[:-1]
+        if pairs:
+            suffix = (kmer[0][1:],  kmer[1][1:])
+            prefix = (kmer[0][:-1], kmer[1][:-1])
+        else:
+            suffix = kmer[1:]
+            prefix = kmer[:-1]
         if prefix not in overlaps:
             overlaps[prefix] = [suffix]   
         else:
@@ -145,11 +157,75 @@ def eulerPath(edge_iter):
     return path[start_idx:-1] + path[:start_idx]
     
 
-def str_reconstruct(kmers):
+def str_reconstruct(kmers, pairs=False, distance=0):
     '''
 
     '''
-    edge_iter = ((k,v) for k, v in deBruijn(kmers).items())
+    edge_iter = ((k,v) for k, v in deBruijn(kmers, pairs=pairs).items())
     kmers = eulerPath(edge_iter)
-    return kmers[0][:-1] + ''.join([kmer[-1] for kmer in kmers])
+    if pairs:
+        s1 = kmers[0][0][:-1] + ''.join([kmer[0][-1] for kmer in kmers])
+        s2 = kmers[0][1][:-1] + ''.join([kmer[1][-1] for kmer in kmers])
+        return s1 + s2[-(len(kmers[0][0])+distance)-1:]
+    else:
+        return kmers[0][:-1] + ''.join([kmer[-1] for kmer in kmers])
+   
+
+def contigs(kmers):
+    '''
+
+    '''
+    incoming = defaultdict(int)
+    overlaps = {}
+    cons = []
+
+    for kmer in kmers:
+        suffix = kmer[1:]
+        prefix = kmer[:-1]
+        if prefix not in overlaps:
+            overlaps[prefix] = [suffix]   
+        else:
+            overlaps[prefix].append(suffix)
+    #overlaps = {k:sorted(list(set(v))) for k, v in overlaps.items()}
+
+    for k, vs in overlaps.items():
+        for v in vs:
+            incoming[v] +=1
+    breaks = set([k for k,v in incoming.items() if v >= 2])
+    print(breaks)
+    breaks.update([k for k,v in overlaps.items() if len(set(vs)) >= 2])
+    print(breaks)
     
+    print(overlaps, incoming)
+    return cons
+    
+
+
+def universal_circular(n):
+    '''
+    
+    '''
+    kmers = [''.join(i) for i in product('01', repeat=n)]
+    edge_iter = ((k,v) for k, v in deBruijn(kmers).items())
+    graph = GraphFactory(edge_iter, directed=True)
+    kmers = euler_cycle(graph, start_node=kmers[0][:-1])
+    #print(kmers)
+    return kmers[0][:-1] + ''.join([kmer[-1] for kmer in kmers[:-n+1]])
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-f', required=True, help='fasta file')
+    parser.add_argument('-k', type=int, required=True, help='kmer size')
+    parser.add_argument('-d', required=False, help='pair distance')
+
+    args = parser.parse_args()
+
+    seqio = SeqIO.parse(args.f, 'fasta', Alphabet.DNAAlphabet())
+    seq = next(seqio).seq
+    reads = [str(s) for s in str_composition(seq, args.k)]
+    
+    restruct = str_reconstruct(reads)
+    assert restruct == str(seq)
+    print('done')

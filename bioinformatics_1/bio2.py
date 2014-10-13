@@ -1,4 +1,6 @@
 from itertools import product, chain, permutations, combinations, filterfalse
+from collections import defaultdict
+import bio1, util
 
 peptide = {
     'A' : ('GCU', 'GCC', 'GCA', 'GCG'),
@@ -94,14 +96,6 @@ def _codon_cutter(rna):
         pos += 3
     
 
-def _dna_frames(dna):
-    '''
-
-    '''
-    yield dna
-    #yield dna[1:-2]
-    #yield dna[2:-1]
-
 def peptide_to_rna(aminos):
     '''
     translate a peptide back into the various rna represenations
@@ -131,25 +125,23 @@ def protein_translate(rna, stop=True):
     return ''.join(_rna_translate(rna, stop=stop))
 
 
-#def peptide_encode(dna, amino):
-#    '''
-#
-#    '''
-#    rna = to_rna(dna)
-#    valid_codes = []
-#    for pep, geno in product(*[_amino_perms(amino), _dna_frames(rna)]):
-#        pep = ''.join(pep)
-#        if pep in geno:
-#            print(pep, geno)
-#            valid_codes.append(pep)
-#    print(valid_codes)
-#    for pep, geno in product(*[_amino_perms(amino[::-1]), _dna_frames(rna)]):
-#        pep = ''.join(pep)
-#        dna = dna[::-1]
-#        #print(pep, geno)
-#        if pep in geno:
-#            valid_codes.append(pep)
-#    return valid_codes  
+def peptide_encode(dna, amino):
+    '''
+
+    '''
+    valid_codes = []
+
+    amino_gen = product(*[peptide[acid] for acid in amino])
+    for pep in amino_gen:
+        amino_acid = to_dna(''.join([p for p in pep]))
+        for kmer in util.kmer_gen(dna, len(amino_acid)): 
+            if kmer == amino_acid:
+                valid_codes.append(amino_acid)
+        for kmer in util.kmer_gen(bio1.complement(dna), len(amino_acid)): 
+            if kmer == amino_acid:
+                valid_codes.append(bio1.complement(amino_acid))
+
+    return valid_codes
 
 
 def cyclic_cutter(text, cycle=1):
@@ -189,6 +181,7 @@ def theoretical_spectrum(peptide):
     pep_masses.append(mass(peptide))
     return sorted(pep_masses)
 
+
 def branch_bound_1(theoretical_masses):
     '''
     finds all peptides that are possible matches for the theoretical mass spectrum
@@ -211,3 +204,31 @@ def branch_bound_1(theoretical_masses):
         peps = [p+sp for p in peps for sp in single_peps]
      
     return ['-'.join([str(i) for i in p]) for p in peps]
+
+
+def number_of_peptides_with_mass(mass, in_data=None):
+    '''
+    dynamic programming solution to find all possible ways peptides add up to a given mass
+    
+    returns the number of ways peptides can have a given mass
+
+    :param mass: the mass to be achieved
+    :type mass: `int`
+    :param in_data: the masses of the components
+    :type in_data: [`int, ...]
+
+    :rtype: `int`
+    '''
+    out = 0
+    data = set(in_data)
+    sources = {k:1 for k in data}
+    while sources:
+        targets = {}
+        for src, add in product(*[sources.keys(), data]):
+            val = src + add
+            targets[val] = targets.get(val, 0) + sources.get(src,1)
+        if mass in targets:
+            out += targets.pop(mass)
+        sources = {k:v for k,v in targets.items() if k <= mass}
+
+    return out

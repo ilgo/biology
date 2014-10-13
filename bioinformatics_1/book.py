@@ -1,11 +1,16 @@
 #!/usr/bin/env python
 import sys
-import bio1, bio2, bio4
+import util
+import bio1, bio2, bio3,bio4, bio5, bio6
 import graph
 
 
-with open(sys.argv[1], 'r') as f:
+import cProfile, pstats, io
 
-    kmers = [kmer.strip() for kmer in f.readlines()]
-    res = bio4.str_reconstruct(kmers)
-    print(res)
+
+with open(sys.argv[1], 'r') as f:
+    #dna = f.readline().strip()
+    sequence = [int(n) for n in f.readline().strip().split(' ')]
+    res = sorted(bio2.branch_bound_1(sequence), reverse=True)
+    #print(res)
+    print(util.pp(res, join_char=' '))

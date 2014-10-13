@@ -1,8 +1,7 @@
 #!/usr/bin/env python
-
 import unittest
 from random import shuffle
-import bio1, bio2, bio4, bio5
+import bio1, bio2, bio3, bio4, bio5, bio6, util
 from graph import *
 
 class TestBioFunctions(unittest.TestCase):
@@ -57,24 +56,58 @@ class TestBioFunctions(unittest.TestCase):
         self.assertEqual(res, [53, 97])
 
     def test_approximate_match(self):
-        genome = 'CGCCCGAATCCAGAACGCATTCCCATATTTCGGGACCACTGGCCTCCACGGTACGGACGTCAATCAAATGCCTAGCGGCTTGTGGTTTCTCCTACGCTCC'
+        genome = 'CGCCCGAATCCAGAACGCATTCCCATATTTCGGGACCACTGGCCTCCACGGTACGGACGTCAATCAAAT'
         pattern = 'ATTCTGGA'
         mismatch = 3
-        res = bio1.pattern_start(genome, pattern, mismatch=mismatch)
-        self.assertEqual(res, [6, 7, 26, 27, 78])
+        res = bio1.approximate_pattern(genome, pattern, mismatch)
+        self.assertEqual(res, [6, 7, 26, 27])
 
-    def test_kmer_approximate(self):
-        genome = 'ACGTTGCATGTCGCATGATGCATGAGAGCT'
-        kmer = 4
-        mismatch = 1
-        res = bio1.approximate_kmer(genome, kmer, mismatch=mismatch)
-        self.assertEqual(sorted(res), ['ATGC', 'ATGT', 'GATG'])
+    def test_pat2num(self):
+        pat = 'GT'
+        res = bio1.pat2num(pat)
+        self.assertEqual(res, 11)
 
-        #genome = 'AAAACAAACGTGGCGGACGTGGCGGACGTGGCGGACGTGGCGGACCATTTGACGCTCTAAAAAACAAAAAACAAAAAACAAACCATTTGAAAAACAACGCTCTAACGCTCTAACTACTGAGACGTGGCGGCTACTGAGACCATTTGAACCATTTGAACCATTTGAACCATTTGACTACTGAGCGCTCTAAAAAACAAAAAACAAACGTGGCGGCTACTGAGAAAACAACTACTGAGAAAACAACGCTCTAACTACTGAGACCATTTGAACGTGGCGGAAAACAACTACTGAGACCATTTGACTACTGAGACCATTTGAAAAACAACGCTCTAACTACTGAGACCATTTGACTACTGAGAAAACAACGCTCTAAACCATTTGAACCATTTGACGCTCTAAACCATTTGACTACTGAGACGTGGCGGACCATTTGAACCATTTGACGCTCTAAACCATTTGACGCTCTAAACGTGGCGGAAAACAAACCATTTGAACGTGGCGGAAAACAAACGTGGCGGCTACTGAGACGTGGCGGCTACTGAGACGTGGCGGCTACTGAGACCATTTGAAAAACAACTACTGAGCGCTCTAACGCTCTAACGCTCTAACGCTCTAAACCATTTGACGCTCTAACGCTCTAAAAAACAACGCTCTAACGCTCTAAACGTGGCGGACCATTTGACTACTGAGACGTGGCGGACCATTTGAACGTGGCGGAAAACAAAAAACAACGCTCTAAACGTGGCGGACGTGGCGGACCATTTGACGCTCTAAACCATTTGAACGTGGCGGACCATTTGA'
-        #kmer = 10
-        #mismatch = 3
-        #res = bio1.approximate_kmer(genome, kmer, mismatch=mismatch)
-        #self.assertNotEqual(res, ['AAAAAACAAA'])
+    def test_num2pat(self):
+        n = 5437
+        k = 7
+        res = bio1.num2pat(n, k)
+        self.assertEqual(res, 'CCCATTC')
+        
+        k = 8
+        res = bio1.num2pat(n, k)
+        self.assertEqual(res, 'ACCCATTC')
+
+    def test_freq_array(self):
+        dna = 'ACGCGGCTCTGAAA'
+        k = 2
+        res = bio1.frequency_array(dna, k)
+        self.assertEqual(res, [2, 1, 0, 0, 0, 0, 2, 2, 1, 2, 1, 0, 0, 1, 1, 0])
+
+    def test_pattern_count(self):
+        text = 'GCGCG'
+        pat  = 'GCG' 
+        res = bio1.pattern_count(text, pat)
+        self.assertEqual(res, 2)    
+
+        text = 'AACAAGCTGATAAACATTTAAAGAG'
+        pat = 'AAAAA'
+        d = 2
+        res = bio1.pattern_count(text, pat, d)
+        self.assertEqual(res, 11)
+
+        text = 'TTTAGAGCCTTCAGAGG'
+        pat = 'GAGG'
+        d = 2
+        res = bio1.pattern_count(text, pat, d)
+        self.assertEqual(res, 4)
+
+    def test_most_freq_mismatch(self):
+        text = 'ACGTTGCATGTCGCATGATGCATGAGAGCT'
+        k = 4
+        d = 1
+        res = sorted(bio1.mismatch_kmers(text, k, d))
+        self.assertEqual(res, sorted(['GATG', 'ATGC', 'ATGT']))
+
 
 #---------------------------------------------------------------
 
@@ -98,13 +131,13 @@ class TestBioFunctions(unittest.TestCase):
         dna2 = bio2.to_dna(rna2)
         self.assertEqual(dna, dna2)
 
-    def _test_peptide_to_rna(self):
+    def test_peptide_to_rna(self):
         amino = 'MA'
         res = bio2.peptide_to_rna(amino)
-        self.assertEqual(res, [])
+        self.assertEqual(res, ['ATGGCT', 'ATGGCC', 'ATGGCA', 'ATGGCG'])
 
 
-    def _test_peptide_encoding(self):
+    def test_peptide_encoding(self):
         dna = 'ATGGCCATGGCCCCCAGAACTGAGATCAATAGTACCCGTATTAACGGGTGA'
         amino = 'MA'
         res = sorted(bio2.peptide_encode(dna, amino))
@@ -128,6 +161,149 @@ class TestBioFunctions(unittest.TestCase):
         expect = sorted(['186-128-113', '186-113-128', '128-186-113', '128-113-186', '113-186-128', '113-128-186'])
         self.assertEqual(sorted(res), expect)
 
+    def test_count_masses(self):
+        in_data = [1,1,2]
+        value = 3
+        res = bio2.number_of_peptides_with_mass(value, in_data=in_data)
+        self.assertEqual(res, 3)
+
+        in_data = [1,5,10]
+        value =  16
+        res = bio2.number_of_peptides_with_mass(value, in_data=in_data)
+        self.assertEqual(res, 58)
+
+        in_data = bio2.masses.values()
+        value = 1024
+        res = bio2.number_of_peptides_with_mass(value, in_data=in_data)
+        self.assertEqual(res, 14712706211)
+
+#---------------------------------------------------
+# bio 3
+
+    def test_motif_enumerate(self):
+        k = 3
+        d = 1
+        dnas = ['ATTTGGC', 'TGCCTTA', 'CGGTATC', 'GAAAATT']
+        expected = ['ATA', 'ATT', 'GTT', 'TTT']
+        res = sorted(bio3.motif_enumerate(dnas, k, d))
+        self.assertEqual(res, expected)
+
+    def test_motif_generator(self):
+        d = 1
+        kmer = 'ATT'
+        res = sorted([motif for motif in util.motif_generator(kmer, d)])
+        self.assertEqual(res, ['AAT', 'ACT', 'AGT', 'ATA', 'ATC', 'ATG', 'ATT', 'CTT', 'GTT', 'TTT'])
+
+    def test_motif_in_dna(self):
+        motifs = ['ATT', 'CTT', 'TTT', 'GTA']
+        dnas = ['ATTTGGC', 'TGCCTTA', 'CGGTATC', 'GAAGTTT']
+        self.assertTrue(bio3.motif_in_dna(motifs, dnas))
+
+        motifs = ['ATT', 'CTT', 'TTT', 'GAT']
+        dnas = ['TTTGGC', 'TGCCGTA']
+        self.assertFalse(bio3.motif_in_dna(motifs, dnas))
+
+    def test_median_string(self):
+        k = 3
+        dnas = ['AAATTGACGCAT','GACGACCACGTT','CGTCAGCGCCTG','GCTGAGCACCGG','AGTACGGGACAG']
+        res = bio3.median_string(dnas, k)
+        self.assertEqual(res , 'GAC')
+    
+    def test_most_probable(self):
+        dna = 'ACCTGTTTATTGCCTAAGTTCCGAACAAACCCAATATAGCCCGAGGGCCT'
+        k = 5
+        profile = [[0.2, 0.2, 0.3, 0.2, 0.3],
+                  [0.4, 0.3, 0.1, 0.5, 0.1],
+                  [0.3, 0.3, 0.5, 0.2, 0.4],
+                  [0.1, 0.2, 0.1, 0.1, 0.2]]
+        res = bio3.most_probable(dna, k, profile)
+        self.assertEqual(res, 'CCGAG')
+
+    def test_motif_matrix(self):
+        dnas = ['GGC','AAG','CAA','CAC','CAA']
+        res = bio3.motif_matrix(dnas)
+        expect = [[0.2, 0.8, 0.4],[0.6, 0.0, 0.4],[0.2, 0.2, 0.2],[0.0, 0.0, 0.0]]
+        self.assertEqual(res, expect)
+
+
+    def test_greedy_motif(self):
+        k = 3 
+        t = 5
+        dnas = ['GGCGTTCAGGCA', 'AAGAATCAGTCA', 'CAAGGAGTTCGC', 'CACGTCAATCAC', 'CAATAATATTCG']
+        res = bio3.greedy_motif(k, t, dnas)
+        excpect = ['CAG','CAG','CAA','CAA','CAA']
+        self.assertEqual(res, excpect)
+
+    def test_greedy_motif_pseudocount(self):
+        k = 3 
+        t = 5
+        dnas = ['GGCGTTCAGGCA', 'AAGAATCAGTCA', 'CAAGGAGTTCGC', 'CACGTCAATCAC', 'CAATAATATTCG']
+        res = bio3.greedy_motif(k, t, dnas, pseudo=True)
+        excpect = ['TTC','ATC','TTC','ATC','TTC']
+        self.assertEqual(res, excpect)
+
+    def test_wrong_greedy(self):
+        with open('data/rosalind_3d.txt', 'r') as f:
+            k, t = [int(n) for n in f.readline().strip().split(' ')]
+            dnas = [line.strip() for line in f.readlines()]
+            res = bio3.greedy_motif(k, t, dnas)
+            not_expect = ['CGTCTAATACGA', 'TGTCTAGCCGTA', 'TAACTGGCGGGA', 'TAAATAAAGAAA',
+                          'TGGATTCCGACA', 'TGTAAAAGGGTT', 'TGATCAGTGGGA', 'TGTTTTGTGTCA',
+                          'TAACTGGAAACA', 'CTACTAACAATA', 'CGAGTATTGCTA', 'TGGATTACGCGA',
+                          'TGATTACTAGTT', 'CATATAACGCTA', 'GGTATGATGGAA', 'TGTTTAGTGTTT',
+                          'TGACTGTACCTT', 'TCTTTGGTGTTA', 'GGACAGAGGCCA', 'TATTTAGTGTTA',
+                          'CCTTTGAAGGGA', 'TGTATTTCGTGT', 'TATTTGGTGTCA', 'TTTTCGACGCTA',
+                          'CGTTTTTCGTGT']
+            self.assertNotEqual(res, not_expect)
+
+    def test_consensus(self):
+        motifs = [
+            'TCGGGGGTTTTT',
+            'CCGGTGACTTAC',
+            'ACGGGGATTTTC',
+            'TTGGGGACTTTT',
+            'AAGGGGACTTCC',
+            'TTGGGGACTTCC',
+            'TCGGGGATTCAT',
+            'TCGGGGATTCCT',
+            'TAGGGGAACTAC',
+            'TCGGGTATAACC'
+        ]
+        res = bio3.consensus(motifs)
+        self.assertEqual(res, 'TCGGGGATTTCC')
+
+    def test_score(self):
+        motifs = [
+            'TCGGGGGTTTTT',
+            'CCGGTGACTTAC',
+            'ACGGGGATTTTC',
+            'TTGGGGACTTTT',
+            'AAGGGGACTTCC',
+            'TTGGGGACTTCC',
+            'TCGGGGATTCAT',
+            'TCGGGGATTCCT',
+            'TAGGGGAACTAC',
+            'TCGGGTATAACC'
+        ]
+        consensus = 'TCGGGGATTTCC'
+        res = bio3.motif_ham_score(consensus, motifs)
+        self.assertEqual(res, 30)
+
+    def __test_randomized_motifs(self):
+        k = 8
+        t = 5
+        dna = [
+            'CGCCCCTCTCGGGGGTGTTCAGTAAACGGCCA',
+            'GGGCGAGGTATGTGTAAGTGCCAAGGTGCCAG',
+            'TAGTACCGAGACCGAAAGAAGTATACAGGCGT',
+            'TAGATCAAGTTTCAGGTGCACGTCGGTGAACC',
+            'AATCCACCAGCTCCACGTGCAATGTTGGCCTA'
+        ]
+        res = bio3.randomized_motif_search(dna, k, t)
+        expected = ['TCTCGGGG','CCAAGGTG','TACAGGCG','TTCAGGTG','TCCACGTG']
+        self.assertEqual(res, expected)
+
+
 #---------------------------------------------------
 # graphs
     
@@ -139,6 +315,14 @@ class TestBioFunctions(unittest.TestCase):
         edge_iter = ((0,[1,2]), (1,[3]), (2,[3]), (3,[0, 4]), (4,[0]))
         g = GraphFactory(edge_iter, directed=True)
         self.assertTrue(is_balanced(g))
+
+    def test_kmer_gen(self):
+        dna = 'CAATCCAAC'
+        k = 3
+        res = [kmer for kmer in util.kmer_gen(dna, k)]
+        expected = ['CAA', 'AAT', 'ATC','TCC', 'CCA','CAA', 'AAC']
+        self.assertEqual(res, expected) 
+       
 
 #----------------------------------------------------
 #lesson 4
@@ -193,17 +377,81 @@ class TestBioFunctions(unittest.TestCase):
         res = bio4.str_reconstruct(kmers)
         self.assertEqual(res, expect)
 
+    def test_str_pair_reconstruct(self):
+        kmers = [('GAGA','TTGA'),('TCGT','GATG'),('CGTG','ATGT'),('TGGT','TGAG'),('GTGA','TGTT'),('GTGG','GTGA'),('TGAG','GTTG'),('GGTC','GAGA'),('GTCG','AGAT')]
+        d = 2
+        expect = 'GTGGTCGTGAGATGTTGA'
+        res = bio4.str_reconstruct(kmers, pairs=True, distance=d)
+        self.assertEqual(res, expect)
+
+    def test_circular(self):
+        n = 4
+        expect = '0001111011001010'
+        res = bio4.universal_circular(n)
+        self.assertEqual(res, expect)
+
+    def __test_contigs(self):
+        kmers = ['ATG','ATG','TGT','TGG','CAT','GGA','GAT','AGA']
+        res = sorted(bio4.contigs(kmers))
+        expect = sorted(['AGA', 'ATG', 'ATG', 'CAT', 'GAT', 'TGGA', 'TGT'])
+        self.assertEqual(res, expect)
 
 #----------------------------------------------------
 #lesson 5
 
-    def _test_lcs(self):
+    def test_change(self):
+        value = 40
+        coins = [1,5,10,20,25,50]
+        res = bio5.change(value, coins)
+        self.assertEqual(res, 2)
 
-        s2 = 'AACCTTGG'
-        s1 = 'ACACTGTGA'
-        res = bio5.lcs(s1, s2)
-        self.assertEqual(res, 'AACTGG')
+        value = 49
+        res = bio5.change(value, coins)
+        self.assertEqual(res, 6)
 
+
+    def test_read_manhatten_data(self):
+        path = 'data/manhatten_data.txt'
+        g,d,r = bio5.read_manhatten_data(path)
+        self.assertEqual(g, [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]])
+        self.assertNotEqual(id(g[0]), id(g[1]))
+        self.assertEqual(d, ([1, 0, 2, 4, 3], [4, 6, 5, 2, 1], [4, 4, 5, 2, 1], [5, 6, 8, 5, 3]))
+        self.assertEqual(r, ([3, 2, 4, 0], [3, 2, 4, 2], [0, 7, 3, 3], [3, 3, 0, 2], [1, 3, 2, 2]))
+
+        path = 'data/rosalind_5b_1_dataset.txt'
+        g,d,r = bio5.read_manhatten_data(path)
+        self.assertEqual(len(d), 11)
+        self.assertEqual(len(d[0]), 8)
+        self.assertEqual(len(r), 12)
+        self.assertEqual(len(r[0]), 7)
+
+
+    def test_manhatten_path(self):
+        path = 'data/manhatten_data.txt'
+        grid, down, right = bio5.read_manhatten_data(path)
+        res = bio5.manhatten_path(grid, down, right) 
+        self.assertEqual(res, 34)
+
+    def __test_LCS(self):
+        data = ['AACCTTGG', 'ACACTGTGA']
+        expected = 'AACTGG'
+        res = bio5.LCS(data)
+        self.assertEqual(res, expected)
+
+#----------------------------------------------------
+#lesson 6
+
+    def test_greedy_revesal_sort(self):
+        data = [-3, +4, +1, +5, -2]
+        res = bio6.greedy_reversal(data)
+        res = bio6.nest_list_print(res)
+        expect = '(-1 -4 +3 +5 -2)\n(+1 -4 +3 +5 -2)\n(+1 +2 -5 -3 +4)\n(+1 +2 +3 +5 +4)\n(+1 +2 +3 -4 -5)\n(+1 +2 +3 +4 -5)\n(+1 +2 +3 +4 +5)'
+        self.assertEqual(res, expect)
+
+    def test_breakpoint_count(self):
+        data = [+3, +4, +5, -12, -8, -7, -6, +1, +2, +10, +9, -11, +13, +14]
+        res = bio6.breakpoint_count(data)
+        self.assertEqual(res, 8)
 
 if __name__ == '__main__':  
     unittest.main()

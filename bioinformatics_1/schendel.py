@@ -23,9 +23,10 @@ def freq_words_with_mismatches(seq, k, d):
     for kmer, freq in kmer_freq.iteritems():
         for mismatch in kmer_mismatches(kmer, d):
             mismatch_count[mismatch] += freq
-    print(mismatch_count)
+    #print(mismatch_count)
     # Computing the maximum value is somewhat time consuming to repeat, so only do it once!
     max_count = max(mismatch_count.values())
+    print(max_count)
     return sorted([kmer for kmer, count in mismatch_count.iteritems() if count == max_count])
 
 def kmer_mismatches(kmer, d):
