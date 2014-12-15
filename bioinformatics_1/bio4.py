@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import argparse
+import math
+import util
 from bio2 import cyclic_cutter
 from itertools import product
 from collections import defaultdict
@@ -98,7 +100,8 @@ def deBruijn(kmers, pairs=False):
             overlaps[prefix] = [suffix]   
         else:
             overlaps[prefix].append(suffix)
-    return {k:sorted(list(set(v))) for k, v in overlaps.items()}
+    #return {k:sorted(list(set(v))) for k, v in overlaps.items()}
+    return overlaps
 
 
 def eulerCycle(edge_iter, start_node=0):
@@ -144,10 +147,15 @@ def eulerPath(edge_iter):
    
     start, end = None, None
     for k, inout in in_outs.items():
-        diff = inout[0] - inout[1]
-        if diff < 0:
+        #diff = inout[0] - inout[1]
+        #if diff < 0:
+        #    start = k
+        #elif diff > 0:
+        #    end = k
+        
+        if inout[0] == 0:
             start = k
-        elif diff > 0:
+        elif inout[1] == 0:
             end = k
         if start and end:
             break
@@ -163,6 +171,7 @@ def str_reconstruct(kmers, pairs=False, distance=0):
     '''
     edge_iter = ((k,v) for k, v in deBruijn(kmers, pairs=pairs).items())
     kmers = eulerPath(edge_iter)
+    #print(kmers)
     if pairs:
         s1 = kmers[0][0][:-1] + ''.join([kmer[0][-1] for kmer in kmers])
         s2 = kmers[0][1][:-1] + ''.join([kmer[1][-1] for kmer in kmers])
@@ -171,11 +180,30 @@ def str_reconstruct(kmers, pairs=False, distance=0):
         return kmers[0][:-1] + ''.join([kmer[-1] for kmer in kmers])
    
 
+def complete(kmers, f):
+    '''
+    try to get a more complete debrujin graph by cutting exisitng kmers into smaller pieces
+
+    :param kmers: the incomplete list of kmers 
+    :type kmers: [`str`, ...]
+    :param `int` f: ratio to cut kmers
+    :returns: [`str`, ...]
+    '''
+    small_kmers = []
+    lenght = math.ceil(len(kmers[0]) / int(f))
+    for kmer in kmers:
+        small_kmers.extend([k for k in util.kmer_gen(kmer, lenght)])
+    return small_kmers
+
 def contigs(kmers):
     '''
+    generate the contigs for a set of kmers
 
+    :param [`str`, ...] kmers: a list of kmers
+    :rtype: [`str`, ...]
+    :returns: a list of contigs
     '''
-    incoming = defaultdict(int)
+    kmers = complete(kmers, 2)
     overlaps = {}
     cons = []
 
@@ -186,18 +214,34 @@ def contigs(kmers):
             overlaps[prefix] = [suffix]   
         else:
             overlaps[prefix].append(suffix)
-    #overlaps = {k:sorted(list(set(v))) for k, v in overlaps.items()}
+    keys = set(overlaps.keys())
+    for vs in overlaps.values():
+        keys.update(vs)
 
+    incoming = {k:0 for k in keys}
+    outgoing = {k:0 for k in keys}
     for k, vs in overlaps.items():
+        outgoing[k] = len(vs)        
         for v in vs:
             incoming[v] +=1
-    breaks = set([k for k,v in incoming.items() if v >= 2])
-    print(breaks)
-    breaks.update([k for k,v in overlaps.items() if len(set(vs)) >= 2])
-    print(breaks)
+
+    starts = [k for k,vs in overlaps.items() for _ in vs]
+    for start in starts:
+        val = incoming[start]
+        if val == 1:
+            continue
+        con = [start]
+        ends = overlaps.get(start, None)
+        while ends and len(ends) > 0:
+            end = ends.pop()
+            con.append(end[-1])
+            if incoming[end] != 1:
+                break
+            start = end
+            ends = overlaps.get(start, None)
+        cons.append(''.join(con))    
     
-    print(overlaps, incoming)
-    return cons
+    return sorted(cons)
     
 
 

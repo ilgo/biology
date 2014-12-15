@@ -133,7 +133,7 @@ def min_skew(genome):
     rosalind_1e.
     fird the minimum skews in the genome
 
-    returns a list of indeces from th egeome where skew is a minimum
+    returns a list of indeces from the genome where skew is a minimum
 
     :param genome: the genome string
     :type genome: `str`
@@ -275,3 +275,9 @@ def mismatch_kmers(text, k, d, compl=False):
     max_score = max(motifs.values())
     return sorted([kmer for kmer, freq in motifs.items() if freq == max_score])
 
+
+def count(dna, kmer, d):
+    '''
+
+    '''
+    return sum([dna.count(motif) for motif in util.motif_generator(kmer, d)])

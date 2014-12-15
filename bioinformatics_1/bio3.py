@@ -1,7 +1,8 @@
 import util
 import math, sys
-from random import randint
-from itertools import permutations, combinations, product, chain, repeat
+from random import randint, random
+import operator as op
+from itertools import permutations, combinations, product, chain, repeat, accumulate
 
 def motif_enumerate(dnas, k, d):
     '''
@@ -13,7 +14,7 @@ def motif_enumerate(dnas, k, d):
     :type dnas: [`str`, ...]
     :param k: lenght of motifs
     :type k: `int`
-    :param d: number of mutatuons
+    :param d: number of mutations
     :type d: `int`
 
     :rtype: [`str`, ...]
@@ -113,7 +114,7 @@ def median_string(dna, k):
 
 def most_probable(dna, k, profile):
     '''
-    Find the kmer most probalbe string in dna, from a nucleotide profile
+    Find the kmer most probable string in dna, from a nucleotide profile
 
     :param dna: a dna string
     :type dna: `str`
@@ -124,13 +125,16 @@ def most_probable(dna, k, profile):
 
     :rtype: `str`
     '''
+    #print(k, len(profile[0]))
+    assert k == len(profile[0])
     n_pos = {k:v for k,v in zip('ACGT', range(4))}
     best_kmer = ''
     best_score = -1.0
     for kmer in util.kmer_gen(dna, k):
         score = 1 
         for i, c in enumerate(kmer):
-            score *= profile[n_pos[c]][i]
+            val = profile[n_pos[c]][i]
+            score *= val if val != 0 else 1.0
         if score > best_score:
             best_score = score
             best_kmer = kmer
@@ -139,7 +143,7 @@ def most_probable(dna, k, profile):
 
 def motif_matrix(dnas, pseudo=False):
     '''
-    calculate a profile form dnas
+    calculate a profile from dnas
 
     returns a matrix 4 x k, the 4 rows are the A, C, G and T rows.
 
@@ -209,7 +213,7 @@ def greedy_motif(k, t, dnas, pseudo=False):
     return best_motifs
 
 
-def randomized_motif_search(dna, k, t):
+def _randomized_motif_search(dna, k, t, pseudo=False):
     '''
 
     :param dna: a list of dna strings
@@ -229,7 +233,7 @@ def randomized_motif_search(dna, k, t):
     best_score = motif_ham_score(consensus(best_motifs), best_motifs)
 
     while True:
-        profile = motif_matrix(best_motifs) #, pseudo=True)
+        profile = motif_matrix(best_motifs, pseudo=pseudo)
         motifs = [most_probable(d, k, profile) for d in dna] 
         score = motif_ham_score(consensus(motifs), motifs)
         if score < best_score:
@@ -237,4 +241,68 @@ def randomized_motif_search(dna, k, t):
             best_score = score
         else: 
             break
-    return best_motifs 
+    return (best_motifs, best_score)
+
+def randomized_motif_search(dna, k, t, N):
+    
+    best_motifs = None
+    best_score = sys.maxsize
+    for n in range(N):
+        motifs, score = _randomized_motif_search(dna, k, t, pseudo=True)
+        if score < best_score:
+            best_motifs = motifs
+            best_score = score
+    return best_motifs, best_score
+
+
+
+def _gibbs_sampler(dna, k, t, N):
+    motifs = []
+    for i in range(t):
+        pos = randint(0, len(dna[0])-k)
+        motifs.append(dna[i][pos:pos+k])
+    best_motifs = motifs[:]
+    best_score = motif_ham_score(consensus(best_motifs), best_motifs)
+
+    for _ in range(N):
+        i = randint(0, t-1)
+        gibbs_motifs = motifs[:i] + motifs[i+1:]
+        profile = motif_matrix(gibbs_motifs, pseudo=True)
+        motifs[i] = profile_random_motif(dna[i], k, profile)        
+        score = motif_ham_score(consensus(motifs), motifs)
+        if score < best_score:
+            best_motifs = motifs[:]
+            best_score = score
+    return (best_motifs, best_score)
+    
+
+def profile_random_motif(dna, k, profile):
+    motifs = {}
+    index = {'A':0, 'C':1, 'G':2, 'T':3}
+    for kmer in util.kmer_gen(dna, k):
+        values = [profile[index[c]][i] for i,c in enumerate(kmer)]
+        motifs[kmer] = [val for val in accumulate(values, func=op.mul)][-1]
+    denom = sum([val for val in motifs.values()])
+    dice = []
+    val = 0.0
+    for k,v in motifs.items():
+        val += v/denom
+        dice.append((val, k))
+    choice = random()
+    for v,k in dice:
+        if choice < v:
+            return k
+    assert 0==1
+ 
+
+
+def gibbs_sampler(dna, k, t, N):
+    best_motifs = None
+    best_score = sys.maxsize
+    for _ in range(20):
+        motifs, score = _gibbs_sampler(dna, k, t, N)
+        if score < best_score:
+            best_motifs = motifs
+            best_score = score
+    return best_motifs, best_score
+    

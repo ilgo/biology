@@ -54,6 +54,7 @@ masses = {
 to_dna = lambda rna : rna.replace('U', 'T')
 to_rna = lambda dna : dna.replace('T', 'U')
 mass = lambda pep : sum([masses[p] for p in pep])
+rev_mass = {v:k for k,v in masses.items()}
 
 
 def _rna_translate(rna, stop=True):
@@ -164,7 +165,7 @@ def cyclic_cutter(text, cycle=1):
         pos += 1
 
 
-def theoretical_spectrum(peptide):
+def theoretical_spectrum(peptide, cyclic=True):
     '''
     calculates the theoretical spectrum of a given peptide
 
@@ -172,17 +173,19 @@ def theoretical_spectrum(peptide):
 
     :param peptide: a peptide string
     :type peptide: `str`
+    :param `boolb` cyclic: True if the theoretical spectrum is a cyclic one.
     
     :rtype: [0, `int`, ...]
     '''
-    peps = chain(*[cyclic_cutter(peptide, n) for n in range(1, len(peptide))])
+    peptide_gen = cyclic_cutter if cyclic else util.kmer_gen
+    peps = chain(*[peptide_gen(peptide, n) for n in range(1, len(peptide))])
     pep_masses = [mass(pep) for pep in peps]
-    pep_masses.insert(0,0)
     pep_masses.append(mass(peptide))
+    pep_masses.insert(0,0)
     return sorted(pep_masses)
 
 
-def branch_bound_1(theoretical_masses):
+def cyclo_peptide_sequence(theoretical_masses):
     '''
     finds all peptides that are possible matches for the theoretical mass spectrum
 
@@ -193,18 +196,71 @@ def branch_bound_1(theoretical_masses):
 
     :rtype: [ `str`, ... ]
     '''
-    single_peps = [[v] for k,v in masses.items()]
-    peps = [p for p in single_peps]
-    while True:
-        peps = [p for p in filter(lambda x: sum(x) in theoretical_masses, peps)]
-        matches = [p for p in peps if sum(p) == theoretical_masses[-1]]
-        if matches:
-            peps = list(set(tuple(m) for m in matches))
-            break
-        peps = [p+sp for p in peps for sp in single_peps]
-     
-    return ['-'.join([str(i) for i in p]) for p in peps]
+    aminos = tuple(v for v in set(masses.values()))
+    outer_spectrum = spectrum_dict(theoretical_masses)
 
+    results = []
+    peps = [[0]]
+    while peps:
+        peps = _branch(peps, aminos)
+        peps, res = _bound(peps, outer_spectrum)
+        results.extend(res)        
+        #print(res, peps)
+    
+    return ['-'.join([str(i) for i in p]) for p in res]
+
+
+#-----------------------------------------------------------------------
+#
+# functions used by cyclo_peptide_sequenc
+#
+
+def _branch(peps, aminos):
+    if peps == [[0]]:
+        return [[amino] for amino in aminos] 
+
+    next_peps = []
+    for pep in peps:
+        for amino in aminos:
+            next_pep = pep[:]
+            next_pep.append(amino)
+            next_peps.append(next_pep)
+    return next_peps
+
+
+def _bound(peps, outer_spectrum):
+    next_peps, res = [],[]
+    parent_mass = max(outer_spectrum.keys())
+
+    _peps = []
+    for pep in peps:
+        _pep = cyclic_spectrum(pep)
+        inner_spectrum = spectrum_dict(_pep)
+        if is_inner_spectrum(inner_spectrum, outer_spectrum):
+            if sum(pep) == parent_mass:
+                res.append(pep)
+            else:
+                next_peps.append(pep)
+    return next_peps, res
+
+
+def is_inner_spectrum(inner_spec_dict, outer_spec_dict):
+    '''
+    determines if the inner_dict is contained within the outer dict.
+    containemtn means that all masses in inner must be in outer, and no inner mass_count can be greater than the respective outer mass_count
+    ''' 
+    #print(inner_spec_dict)
+    #print(outer_spec_dict)
+    #print('>>>>>')
+    for k, v in inner_spec_dict.items():
+        if k not in outer_spec_dict:
+            return False
+        if v > outer_spec_dict[k]:
+            return False
+    return True
+
+
+#-----------------------------------------------------------------------
 
 def number_of_peptides_with_mass(mass, in_data=None):
     '''
@@ -232,3 +288,172 @@ def number_of_peptides_with_mass(mass, in_data=None):
         sources = {k:v for k,v in targets.items() if k <= mass}
 
     return out
+
+
+def cyclic_spectrum(masses, zero=False):
+    '''
+    calculates the  cyclopeptide sequence for the given masses.
+    
+    the result will not include a zero.
+
+    :param [`int`, ...] masses: the masses to be added    
+    :returns: the list of all masses in the cycle formed by the masses, including the mass
+    :rtype: [`int`, ...]
+    '''
+    spectrum = masses[:]
+    if len(masses) <= 1:
+        return spectrum
+
+    for d in range(2, len(masses)):
+        cy_mass = masses + masses[:d-1]
+        for p in range(len(cy_mass)-d+1):
+            spectrum.append(sum(cy_mass[p:p+d]))
+
+    spectrum.append(sum(masses))
+    if zero:
+        spectrum.insert(0,0)
+    return spectrum
+   
+
+
+
+def spectrum_dict(masses):
+    '''
+    generates the spectrum dictionary. a mapping from mass to mass_count
+ 
+    '''
+    spec_dict = {}
+    for m in masses:
+        if m in spec_dict:
+            spec_dict[m] += 1
+        else:
+            spec_dict[m] = 1
+    return spec_dict
+
+
+def leaderboard_cyclopeptide_sequence(sequence, N, allow=None, cyclic=True):
+
+    if not allow:
+        aminos = tuple(v for v in set(masses.values()))
+    else:
+        aminos = tuple(set(allow))
+    spectrum = spectrum_dict(sequence)
+    mass = max(sequence)
+
+    best_peptide = None
+    best_score = 0
+    leaders = [[0]]
+    while leaders:
+        leaders = _branch(leaders, aminos)
+        leaders, res = _bound2(leaders, mass)
+        for leader in res:
+            score = cyclopeptide_scoring(leader, spectrum,cyclic=cyclic)
+            if score > best_score:
+                best_peptide = leader
+                best_score = score
+        leaders = trim(leaders, spectrum, N, cyclic=cyclic)
+         
+    return '-'.join([str(i) for i in best_peptide])
+
+
+def _bound2(leaders, mass):
+    new_leaders = []
+    res = []
+    for leader in leaders:
+        lead_mass = sum(leader)
+        if lead_mass == mass:
+            res.append(leader)
+        elif lead_mass < mass:
+            new_leaders.append(leader)
+    return new_leaders, res    
+
+
+def cyclopeptide_scoring(peptide, spec_dict, cyclic=True):
+    '''
+    what is the score of the peptide against the spectrum
+    spec_dict parameter is generated with the spectrum_dict(mases) function    
+
+    :param `str` peptide: the peptide to get the score from
+    :param {`int`: `int`} spectrum: an value:count dictionary for masses and their occurrence counts
+    :param `bool` cyclic: True if the peptide is cyclic
+    :rtype: `int`
+    :returns the score
+    '''
+    #peptide_spectrum = theoretical_spectrum(peptide, cyclic=cyclic)
+    peptide_spectrum = cyclic_spectrum(peptide, zero=True)
+    score = 0
+    for k,v in spectrum_dict(peptide_spectrum).items():
+        if k in spec_dict:
+            score += spec_dict[k] if spec_dict[k] <= v else v
+    return score
+
+
+def spectral_convolution(seq):
+    data = {}
+    seq = sorted(seq)
+    #print(seq)
+    for i in range(len(seq)-1):
+        for n,m in zip(seq[i+1:], seq[:-1]):
+            #print(i, n, m)
+            diff = n-m
+            if diff in data:
+                data[diff] += 1
+            else:
+                data[diff] = 1
+    return sorted([(v,k) for k,v in data.items() if k > 0], reverse=True)
+
+
+def expand_convolution(convolution_tuples):
+    '''
+
+    '''
+    masses = []
+    for n, m in convolution_tuples:
+        for i in range(n):
+            masses.append(m)
+    return masses
+
+
+def convolution_sequencing(m, n, seq):
+   
+    if 0 not in seq:
+        seq.append(0)
+    slots = [slot for slot in spectral_convolution(seq) if slot[1] >= 57 and slot[1] < 200]
+    top_m = slots[m-1] if len(slots) > m-1 else slots[-1]
+    mass = [v for c, v in slots if c >= top_m[0]]
+    #print(slots)    
+    #print(mass)    
+
+    return leaderboard_cyclopeptide_sequence(seq, n, allow=mass, cyclic=True)
+    
+
+  
+def subpeptides(n):
+    '''
+    calculate the number of subpeptides for a cyclic peptide 
+    '''  
+    return (n-1)*n 
+
+
+def masses2peptide(mass):
+    pep = [rev_mass[m] for m in mass] 
+    return ''.join(pep)
+    
+
+def trim(leaderboard, spectrum, N, cyclic=True):
+    '''
+    pick the N highest scoring peptides from leaderboard with respect to spectrum
+
+    :param [`str`, ...] leaderboard: the list of peptides to choose from 
+    :param [`int`, ...] spectrum: the spectrum to compare the peptides to.
+    :param `int` N: the top N to return
+    :returns: the N highest scoring leaders 
+    '''
+    if isinstance(spectrum, dict):
+        spec_dict = spectrum
+    else:
+        spec_dict = spectrum_dict(spectrum)
+    scores = [(cyclopeptide_scoring(peptide, spec_dict, cyclic=cyclic),peptide) for peptide in leaderboard]
+    top_N = sorted(scores, reverse=True)[:N]
+    return [top[1] for top in top_N]
+    

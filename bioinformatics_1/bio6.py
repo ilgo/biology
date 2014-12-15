@@ -1,4 +1,7 @@
+import util
+import bio1
 
+from bisect import bisect_left
 
 def nest_list_print(nested_list):
     '''
@@ -56,3 +59,34 @@ def breakpoint_count(signed_perm):
         if n+1 != m:
             c += 1
     return c
+
+
+
+def shared_kmers(k, s1, s2):
+    '''
+    shared kmers can appear on more than one location as well as complements.
+
+    :param `int` k: len of shared kmers
+    :param `str` s1: the first string
+    :param `str` s2: the second string
+    :rtype: [(`int`, `int`), ...]
+    :returns: a list of indeces from both strings where kmers match
+    '''
+    data = {}
+    for idx, kmer in enumerate(util.kmer_gen(s2, k)):
+        idxs = data.get(kmer, [])
+        idxs.append(idx)
+        data[kmer] = idxs
+    data = [(k,v) for k, v in data.items()]
+    data.sort(key=lambda r: r[0])
+    keys = [r[0] for r in data]   
+    shared = []
+    for idx, kmer in enumerate(util.kmer_gen(s1, k)):
+        for s in [kmer, bio1.complement(kmer)]:
+            pos = bisect_left(keys, s)
+            match = data[pos][1] if pos != len(keys) and data[pos][0] == s else []
+            if match:
+                shared.extend([(idx, m) for m in match])
+    return shared
+
+
