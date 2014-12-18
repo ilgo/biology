@@ -89,4 +89,7 @@ def shared_kmers(k, s1, s2):
                 shared.extend([(idx, m) for m in match])
     return shared
 
+def signed_permutation_string(seq):
+    inner = ' '.join(['%+d' %n for n in seq])   
+    return '(' + inner + ')'
 

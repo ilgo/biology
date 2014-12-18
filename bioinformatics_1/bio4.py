@@ -144,7 +144,7 @@ def eulerPath(edge_iter):
             entry2 = in_outs[v] if v in in_outs else [0,0]
             entry2[0] += 1
             in_outs[v] = entry2
-   
+  
     start, end = None, None
     for k, inout in in_outs.items():
         #diff = inout[0] - inout[1]
@@ -153,9 +153,9 @@ def eulerPath(edge_iter):
         #elif diff > 0:
         #    end = k
         
-        if inout[0] == 0:
+        if inout[0] < inout[1]:
             start = k
-        elif inout[1] == 0:
+        elif inout[1] < inout[0]:
             end = k
         if start and end:
             break

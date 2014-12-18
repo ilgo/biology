@@ -207,7 +207,7 @@ def greedy_motif(k, t, dnas, pseudo=False):
             probable = most_probable(dnas[i], k, profile)
             motifs.append(probable)
         score = motif_ham_score(consensus(motifs), motifs)
-        if score < best_score:
+        if score <= best_score:
             best_score = score
             best_motifs = motifs[:]
     return best_motifs

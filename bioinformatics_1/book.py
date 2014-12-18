@@ -10,21 +10,25 @@ from collections import defaultdict
 import cProfile, pstats, io
 
 
+k = 3 
+t = 5
+dnas = ['GGCGTTCAGGCA', 'AAGAATCAGTCA', 'CAAGGAGTTCGC', 'CACGTCAATCAC', 'CAATAATATTCG']
+res = bio3.greedy_motif(k, t, dnas, pseudo=True)
+print( res)
+
+sys.exit()
 
 #now = datetime.now()
 
 f_name = 'data/test.txt' if len(sys.argv) == 1 else sys.argv[1]
 with open(f_name, 'r') as f:
    
-     
-    s1 = f.readline().strip()
-    s2 = f.readline().strip()
-    pathLen, path = bio5.overlap_align(s1, s2)
-    print(pathLen, path)
-    res = bio5.align_strings(s1, s2, path)
-    res.insert(0, pathLen)
-
+    #k = int(f.readline().strip())
+    dnas = [line.strip() for line in f.readlines()] 
+    print(dnas)
+    res = bio4.contigs(dnas)
     #print(res)
+    #res = [bio6.signed_permutation_string(seq) for seq in seqs]
     print(util.pp(res, join_char='\n'))
 
     #print(datetime.now()-now)
