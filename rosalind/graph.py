@@ -93,12 +93,11 @@ def euler_cycle(graph, start_node=None):
         try:
             next_node = euler[node].pop()
             node = next_node
-            #print(node, path)
             path.append(node)
         except:
             combined = list(zip(range(len(path)), path))[:-1]
             for i,last_node in combined[::-1]:
-                if euler[last_node]:
+                if last_node in euler and euler[last_node]:
                     path = path[i:] + path[1:i+1]
                     node = last_node
                     break 
