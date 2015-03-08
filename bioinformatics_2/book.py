@@ -1,15 +1,10 @@
 #!/usr/bin/env python
 import sys
 import util
-import turnpike
-import bio1, bio2, bio3,bio4, bio5, bio6, bio7
-import graph
+import bio2_1
 
 from datetime import datetime
 from collections import defaultdict
-import cProfile, pstats, io
-
-
 
 
 
@@ -20,7 +15,7 @@ with open(f_name, 'r') as f:
     s1 = f.readline().strip()
     s2 = f.readline().strip()
     #perm = [int(k) for k in f.readline().split(' ')]
-    res = bio5.middle_edge(s1, s2)
+    #res = bio5.middle_edge(s1, s2)
     #print(res)
     print(util.pp(res, join_char='\n'))
 

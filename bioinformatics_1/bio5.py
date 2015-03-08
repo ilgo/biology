@@ -1,7 +1,7 @@
 from itertools import product
 from bio1 import pp
 from collections import deque
-import sys
+import sys, math, util
 from array import array
 
 prefixes = ['A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','Y']
@@ -260,6 +260,7 @@ def _make_edges(s1, s2, matrix, sigma, source_connect=False, fit_connect=False, 
     :param `bool` fit_connect: connect first row nodes to source and last row nodes to sink. 
     :param `bool` overlap_connect: connect first row nodes to source and last column nodes to sink. 
     '''
+    print(s1, s2)
     n = (len(s1)+1) * len(s2)
     for i in range(n):
         tar = i + len(s1)+1
@@ -329,8 +330,8 @@ def global_align(s1, s2, sigma=-5):
     return (length, path)
 
 
-def local_align(s1, s2, sigma=-5):
-    pam250 = read_score_matrix('pam250')
+def local_align(s1, s2, sigma=-5, matrix='pam250'):
+    pam250 = read_score_matrix(matrix)
     edges = _make_edges(s1, s2, pam250, sigma, source_connect=True)
     #print ('\n'.join([str(e) for e in edges]))
     sink = (len(s1) + 1) * (len(s2) + 1) - 1 
@@ -382,9 +383,10 @@ def overlap_align(s1, s2):
     return (length, path)
 
 
-def affine_gap(s1, s2, gap_penalty=-11 , extend_penalty=-1 , matrix_name='blosum62'):
+def affine_gap(s1, s2, gap_penalty=-11 , extend_penalty=-1 , matrix_name='blosum62', matrix=None):
 
-    matrix = read_score_matrix(matrix_name)
+    if not matrix:
+        matrix = read_score_matrix(matrix_name)
     edges = _make_affine_edges(s1, s2, matrix, gap_penalty, extend_penalty)
     #print ('\n'.join([str(e) for e in edges]))
     sink = (len(s1) + 1) * (len(s2) + 1) - 1 
@@ -496,3 +498,64 @@ def align_affine_strings(s1, s2, path):
 
     return [''.join([c for c in s[::-1]]) for s in (as1, as2)]
   
+
+def middle_edge(s1, s2, sigma=-5, matrix='blosum62'):
+    
+    half = math.floor(len(s2)) / 2)
+    mat = read_score_matrix(matrix)
+    sink = (len(s1) + 1) * (half + 1) - 1 
+
+    edges = _make_edges(s1, s2[:half], mat, sigma)
+    dag = DAG(sink, edges)
+    middle_nodes = [(k,v) for k,v in dag.items() if (k+1) % (half+1) == 0]
+    print(util.pp(middle_nodes, join_char='\n'))
+ 
+    #print('\n'.join(['%d: %r' %(k,v) for k,v in dag.items()]))
+    lg_dict = longest_paths(0, sink, dag)
+    #m_nodes = [k for k, v in middle_nodes]
+    nodes = [(k,lg_dict[k]) for k,v in middle_nodes]
+    print(nodes)
+    print('---')
+
+    r_s1, r_s2 = s1[::-1], s2[::-1]
+    edges = _make_edges(r_s1, r_s2[:half], mat, sigma)
+    dag = DAG(sink, edges)
+    r_middle_nodes = [(k,v) for k,v in dag.items() if (k+1) % (half+1) == 0]
+    r_lg_dict = longest_paths(0, sink, dag)
+    rm_nodes = [k for k, v in r_middle_nodes]
+    sm = rm_nodes[0] + rm_nodes[-1]
+    r_nodes = [(sm-k,lg_dict[k]) for k,v in middle_nodes[::-1]]
+    #r_nodes = [sm-n for n in r_nodes]
+
+    print(util.pp(middle_nodes, join_char='\n'))
+    print(r_nodes)
+
+
+    return #(length, path)
+
+def longest_paths(src, sink, dag, mins=-sys.maxsize):
+    done = {}
+    lps = {src:(0, None)} # val, from
+    q = deque([src])
+    while len(q) > 0:
+        node = q.popleft()
+        if node in dag:
+            edges = dag[node]
+            for edge_0, edge_1 in pairwise(edges):
+                #if edge_0 not in done:
+                #q.append(edge_0)
+                #done[edge_0] = None
+                val = lps.get(node, (mins, None))
+                val_to  = lps.get(edge_0, (mins, None))
+                if val[0] + edge_1 > val_to[0]:
+                    lps[edge_0] = (val[0] + edge_1, node)  
+                    q.append(edge_0)
+    #print ('\n'.join(['%r : %r ' %(k,v) for k,v in lps.items()]))
+    del dag
+    back = [sink]
+    edge = lps[sink]
+    while edge[1]:
+        back.append(edge[1])
+        edge = lps[edge[1]]
+    back.append(0)
+    return lps

@@ -191,19 +191,23 @@ def complete(kmers, f):
     '''
     small_kmers = []
     lenght = math.ceil(len(kmers[0]) / int(f))
+    lenght += 1 if lenght == 2 else 0
     for kmer in kmers:
         small_kmers.extend([k for k in util.kmer_gen(kmer, lenght)])
     return small_kmers
 
-def contigs(kmers):
+def contigs_1(kmers, complet=False):
     '''
     generate the contigs for a set of kmers
+
+    seems not to work with incomplete reads!!
 
     :param [`str`, ...] kmers: a list of kmers
     :rtype: [`str`, ...]
     :returns: a list of contigs
     '''
-    kmers = complete(kmers, 2)
+    if complet:
+        kmers = complete(kmers, 2)
     overlaps = {}
     cons = []
 
@@ -225,6 +229,10 @@ def contigs(kmers):
         for v in vs:
             incoming[v] +=1
 
+
+    print(incoming)
+    print(outgoing)
+    print(overlaps)
     starts = [k for k,vs in overlaps.items() for _ in vs]
     for start in starts:
         val = incoming[start]
@@ -243,6 +251,12 @@ def contigs(kmers):
     
     return sorted(cons)
     
+
+def contigs(kmers, complet=True):
+    if complet:
+        kmers = complete(kmers, 2)
+    brujin = deBruijn(kmers)
+    print(brujin)
 
 
 def universal_circular(n):
